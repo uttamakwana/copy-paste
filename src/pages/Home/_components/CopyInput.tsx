@@ -26,17 +26,18 @@ export const CopyInput = () => {
     // Use TinyURL API for URL shortening
     try {
       const response = await fetch(
-        `https://api.tinyurl.com/create?api_token=YOUR_TINYURL_API_TOKEN`, // Replace with your API token
+        `https://www.shareaholic.com/v2/share/shorten_link/`, // Replace with your API token
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: shareableLink }),
+          body: JSON.stringify({ url: shareableLink, apiKey: "94b6681b3dbd964177705bf36cae7932" }),
         }
       );
       const data = await response.json();
-      if (data.data?.tiny_url) {
-        setShortenedURL(data.data.tiny_url);
-        navigator.clipboard.writeText(data.data.tiny_url);
+      console.log({ data });
+      if (data?.data) {
+        setShortenedURL(data.data);
+        navigator.clipboard.writeText(data.data);
         alert("Shortened link copied to clipboard!");
       } else {
         throw new Error("Failed to shorten URL");
