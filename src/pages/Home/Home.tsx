@@ -1,4 +1,3 @@
-import { Header } from "@components";
 import { CopyInput } from "./_components/CopyInput";
 
 export const Home = () => {
