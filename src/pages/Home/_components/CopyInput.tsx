@@ -1,96 +1,136 @@
-import React, { useState } from "react";
-import { Button, CopyIcon, PasteIcon } from "@components/ui";
+import { useSearchParams } from "react-router-dom";
 import CodeEditor from "@uiw/react-textarea-code-editor";
+import { useState, useEffect } from "react";
 import rehypePrism from "rehype-prism-plus";
-import { languages } from "@constants";
-
-type Language = (typeof languages)[number];
 
 export const CopyInput = () => {
-  const [code, setCode] = useState(`function add(a, b) {\n  return a + b;\n}`);
-  const [shortUrl, setShortUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [code, setCode] = useState<string>(""); // Editor content
+  const [isCodeLoadedFromURL, setIsCodeLoadedFromURL] = useState(false);
+  const [shortenedURL, setShortenedURL] = useState<string | null>(null); // Short URL
 
-  const handleShortenCode = async () => {
+  // Load code from URL on component mount
+  useEffect(() => {
+    const queryCode = searchParams.get("code");
+    if (queryCode) {
+      setCode(decodeURIComponent(queryCode));
+      setIsCodeLoadedFromURL(true);
+    }
+  }, [searchParams]);
+
+  // Generate a shareable link (shortens URL via API)
+  const generateAndCopyLink = async () => {
+    const encodedCode = encodeURIComponent(code);
+    const shareableLink = `${window.location.origin}?code=${encodedCode}`;
+
+    // Use TinyURL API for URL shortening
     try {
-      setLoading(true);
-      const encodedCode = encodeURIComponent(code);
       const response = await fetch(
-        `https://tinyurl.com/api-create.php?url=${encodedCode}`
+        `https://api.tinyurl.com/create?api_token=YOUR_TINYURL_API_TOKEN`, // Replace with your API token
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: shareableLink }),
+        }
       );
-
-      const result = await response.text();
-      setShortUrl(result);
-      alert("URL shortened successfully!");
+      const data = await response.json();
+      if (data.data?.tiny_url) {
+        setShortenedURL(data.data.tiny_url);
+        navigator.clipboard.writeText(data.data.tiny_url);
+        alert("Shortened link copied to clipboard!");
+      } else {
+        throw new Error("Failed to shorten URL");
+      }
     } catch (error) {
-      alert("Could not shorten the URL.");
-      console.error(error);
-    } finally {
-      setLoading(false);
+      console.error("Error generating short URL:", error);
+      alert("Failed to generate a short URL. Link copied instead.");
+      navigator.clipboard.writeText(shareableLink);
     }
   };
 
-  const handleCopyToClipboard = async () => {
-    if (shortUrl) {
-      try {
-        await navigator.clipboard.writeText(shortUrl);
-        alert("Shortened URL copied to clipboard!");
-      } catch (error) {
-        alert("Unable to copy URL.");
-      }
-    }
+  // Copy the current code to clipboard
+  const copyCodeToClipboard = () => {
+    navigator.clipboard.writeText(code).then(
+      () => alert("Code copied to clipboard!"),
+      () => alert("Failed to copy code.")
+    );
+  };
+
+  // Clear the code editor
+  const clearCode = () => {
+    setCode("");
+    setSearchParams({}); // Clear query params from the URL
+    setIsCodeLoadedFromURL(false);
+    setShortenedURL(null); // Clear any shortened URL
   };
 
   return (
     <div className="p-4">
       <div className="rounded bg-[#2f2f2f] border border-[#313131]">
-        <div className="bg-[#2f2f2f] z-10 sticky top-0 flex items-center justify-between py-2 px-4">
-          <div className="flex items-center gap-4">
+        <div className="bg-[#2f2f2f] sticky top-0 flex items-center justify-between py-2 px-4">
+          {!isCodeLoadedFromURL ? (
             <button
-              className="flex items-center gap-1.5 cursor-pointer"
-              onClick={handleShortenCode}
-              disabled={loading}
+              onClick={generateAndCopyLink}
+              className="bg-indigo-600 text-white px-4 py-2 rounded"
             >
-              {loading ? "Shortening..." : <CopyIcon />}
-              <span>Generate Short Link</span>
+              Generate & Copy Link
             </button>
-            <button
-              className="flex items-center gap-1.5 cursor-pointer"
-              onClick={handleCopyToClipboard}
-              disabled={!shortUrl}
-            >
-              <PasteIcon />
-              <span>Copy Link</span>
-            </button>
-          </div>
+          ) : (
+            <div className="flex gap-4">
+              <button
+                onClick={copyCodeToClipboard}
+                className="bg-green-600 text-white px-4 py-2 rounded"
+              >
+                Copy Code
+              </button>
+              <button
+                onClick={generateAndCopyLink}
+                className="bg-indigo-600 text-white px-4 py-2 rounded"
+              >
+                Share Code
+              </button>
+              <button
+                onClick={clearCode}
+                className="bg-red-600 text-white px-4 py-2 rounded"
+              >
+                Clear Code
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Show shortened link if available */}
+        {shortenedURL && (
+          <div className="bg-gray-800 text-white text-sm px-4 py-2">
+            Shortened Link:{" "}
+            <a
+              href={shortenedURL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 underline"
+            >
+              {shortenedURL}
+            </a>
+          </div>
+        )}
+
         <CodeEditor
           value={code}
           language="js"
-          rehypePlugins={[rehypePrism]}
-          placeholder="Paste your JS code here."
+          rehypePlugins={[
+            [rehypePrism, { ignoreMissing: true, showLineNumbers: true }],
+          ]}
+          placeholder="Paste your code here."
           onChange={(evn) => setCode(evn.target.value)}
           padding={15}
           className="bg-[#0d0d0d]"
           style={{
             fontFamily:
-              "ui-monospace, SFMono-Regular, SF Mono, Consolas, Liberation Mono, Menlo, monospace",
+              "ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace",
           }}
+          readOnly={false}
         />
       </div>
-      {shortUrl && (
-        <div className="mt-4 text-sm text-gray-400">
-          <span>Shortened URL:</span>
-          <a
-            href={shortUrl}
-            target="_blank"
-            className="text-indigo-500 ml-2"
-            rel="noreferrer"
-          >
-            {shortUrl}
-          </a>
-        </div>
-      )}
     </div>
   );
 };
